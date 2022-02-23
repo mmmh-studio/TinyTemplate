@@ -53,6 +53,7 @@ impl<'template> TemplateCompiler<'template> {
         while !self.remaining_text.is_empty() {
             // Comment, denoted by {# comment text #}
             if self.remaining_text.starts_with("{#") {
+                continue;
                 self.trim_next = false;
 
                 let tag = self.consume_tag("#}")?;
@@ -65,7 +66,7 @@ impl<'template> TemplateCompiler<'template> {
                 }
             // Block tag. Block tags are wrapped in {{ }} and always have one word at the start
             // to identify which kind of tag it is. Depending on the tag type there may be more.
-            } else if self.remaining_text.starts_with("{{") {
+            } else if self.remaining_text.starts_with("${{") {
                 self.trim_next = false;
 
                 let (discriminant, rest) = self.consume_block()?;
@@ -140,7 +141,7 @@ impl<'template> TemplateCompiler<'template> {
             // Values, of the form { dotted.path.to.value.in.context }
             // Note that it is not (currently) possible to escape curly braces in the templates to
             // prevent them from being interpreted as values.
-            } else if self.remaining_text.starts_with('{') {
+            } else if self.remaining_text.starts_with("${") {
                 self.trim_next = false;
 
                 let (path, name) = self.consume_value()?;
@@ -273,7 +274,7 @@ impl<'template> TemplateCompiler<'template> {
         };
 
         let mut position = search_substr
-            .find('{')
+            .find("${")
             .unwrap_or_else(|| search_substr.len());
         if escaped {
             position += 1;
@@ -287,8 +288,8 @@ impl<'template> TemplateCompiler<'template> {
     /// Advance the cursor to the end of the value tag and return the value's path and optional
     /// formatter name.
     fn consume_value(&mut self) -> Result<(Path<'template>, Option<&'template str>)> {
-        let tag = self.consume_tag("}")?;
-        let mut tag = tag[1..(tag.len() - 1)].trim();
+        let tag = self.consume_tag("}$")?;
+        let mut tag = tag[2..(tag.len() - 2)].trim();
         if tag.starts_with('-') {
             tag = tag[1..].trim();
             self.trim_last_whitespace();
@@ -323,8 +324,8 @@ impl<'template> TemplateCompiler<'template> {
     /// Advance the cursor to the end of the current block tag and return the discriminant substring
     /// and the rest of the text in the tag. Also handles trimming whitespace where needed.
     fn consume_block(&mut self) -> Result<(&'template str, &'template str)> {
-        let tag = self.consume_tag("}}")?;
-        let mut block = tag[2..(tag.len() - 2)].trim();
+        let tag = self.consume_tag("}}$")?;
+        let mut block = tag[3..(tag.len() - 3)].trim();
         if block.starts_with('-') {
             block = block[1..].trim();
             self.trim_last_whitespace();
